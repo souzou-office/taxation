@@ -1,0 +1,14 @@
+{
+  "name": "scraper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "scrape": "node src/index.js",
+    "parse": "node src/parse.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}

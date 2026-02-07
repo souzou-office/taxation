@@ -1,0 +1,25 @@
+{
+  "name": "tsutatsu-search",
+  "main": "src/index.js",
+  "compatibility_date": "2024-12-01",
+  "observability": {
+    "enabled": true
+  },
+  // Vectorize: 通達用のベクトルインデックス
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "tsutatsu-embeddings"
+    }
+  ],
+  // R2: 通達本文JSON置き場
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "tsutatsu-data"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
+}
