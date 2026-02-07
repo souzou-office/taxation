@@ -23,8 +23,8 @@ export default {
       try {
         const { query } = await request.json();
 
-        // Workers AIでembedding生成
-        const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
+        // Workers AIでembedding生成（条文くんと同じモデル）
+        const embeddingResult = await env.AI.run('@cf/baai/bge-m3', {
           text: [query],
         });
         const queryVector = embeddingResult.data[0];

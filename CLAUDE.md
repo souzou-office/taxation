@@ -7,7 +7,7 @@
 ## アーキテクチャ
 - **フロント**: React + Vite → Cloudflare Pages
 - **API**: Cloudflare Workers + Vectorize + R2
-- **Embedding**: OpenAI text-embedding-3-small（条文くんと同じモデル）
+- **Embedding**: Cloudflare Workers AI `@cf/baai/bge-m3`（条文くんと同じモデル）
 - **スクレイピング**: Node.js + cheerio
 
 ## ディレクトリ構成
@@ -52,7 +52,7 @@ data/              - スクレイピングデータ (.gitignore済)
 - 枝番: `sochiho-69の4-24の6`（通達番号をそのまま使用）
 
 ## 重要な制約
-- embeddingモデルは `text-embedding-3-small` で固定（条文くんとの互換性）
+- embeddingモデルは `@cf/baai/bge-m3` で固定（条文くんとの互換性、Cloudflare Workers AI）
 - Vectorizeインデックス名: `tsutatsu-embeddings`（別indexで開発→マージ時に統合）
 - R2バケット名: `tsutatsu-data`
 

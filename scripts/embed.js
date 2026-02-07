@@ -2,47 +2,50 @@
  * Embedding生成 + Vectorize投入スクリプト
  *
  * チャンク化された通達JSONを読み込み、
- * OpenAI text-embedding-3-small でベクトル化し、
+ * Cloudflare Workers AI (bge-m3) でベクトル化し、
  * Cloudflare Vectorize に投入する。
  *
  * 条文くんと同じembeddingモデルを使うことで、
  * 将来のインデックス統合を可能にする。
  *
- * Usage: OPENAI_API_KEY=xxx node scripts/embed.js [target]
+ * Usage: CF_ACCOUNT_ID=xxx CF_API_TOKEN=xxx node scripts/embed.js [target]
  */
 
-import { readFile, readdir } from 'fs/promises';
+import { readFile, readdir, writeFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', 'data', 'chunks');
-const EMBEDDING_MODEL = 'text-embedding-3-small';
-const BATCH_SIZE = 100;
+const EMBEDDING_MODEL = '@cf/baai/bge-m3';
+const BATCH_SIZE = 50;
 
 async function getEmbeddings(texts) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY is required');
+  const accountId = process.env.CF_ACCOUNT_ID;
+  const apiToken = process.env.CF_API_TOKEN;
+  if (!accountId || !apiToken) {
+    throw new Error('CF_ACCOUNT_ID and CF_API_TOKEN are required');
+  }
 
-  const res = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: EMBEDDING_MODEL,
-      input: texts,
-    }),
-  });
+  const res = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${EMBEDDING_MODEL}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text: texts }),
+    }
+  );
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`OpenAI API error: ${res.status} ${err}`);
+    throw new Error(`Cloudflare AI API error: ${res.status} ${err}`);
   }
 
   const data = await res.json();
-  return data.data.map((d) => d.embedding);
+  return data.result.data;
 }
 
 /**
@@ -100,19 +103,14 @@ async function main() {
 
     // レートリミット回避
     if (i + BATCH_SIZE < chunks.length) {
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
 
-  // TODO: Vectorize APIで投入
-  // wrangler vectorize insert tsutatsu-embeddings --file=vectors.ndjson
-  // または Cloudflare API 直接呼び出し
-
-  // 一旦NDJSONで出力
+  // NDJSON出力（wrangler vectorize insert で投入用）
   const ndjson = vectors.map((v) => JSON.stringify(v)).join('\n');
   const outPath = join(__dirname, '..', 'data', `${target}-vectors.ndjson`);
-  const { writeFile: wf } = await import('fs/promises');
-  await wf(outPath, ndjson, 'utf-8');
+  await writeFile(outPath, ndjson, 'utf-8');
   console.log(`Saved ${vectors.length} vectors to ${outPath}`);
 }
 
