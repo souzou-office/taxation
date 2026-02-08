@@ -105,13 +105,22 @@ function parseTsutatsuPage(html, type) {
       const text = $el.text().trim();
       const strong = $el.find('strong').first().text().trim();
 
-      // <strong> に通達番号があるかチェック
-      // 通達番号パターン: "36-15", "95条", "96条" など
-      const numberMatch = strong.match(
-        /(\d{1,3}(?:の\d{1,3})*[-－]\d{1,3}(?:[-－]\d{1,3})?(?:の\d{1,3})*)/
-      );
+      // 通達番号パターン（共通）
+      const numberPattern =
+        /(\d{1,3}(?:の\d{1,3})*[-－–—]\d{1,3}(?:[-－–—]\d{1,3})?(?:の\d{1,3})*)/;
+
+      // 1. <strong> に通達番号があるかチェック
+      let numberMatch = strong.match(numberPattern);
+
+      // 2. strongに番号がない場合、テキスト全体の先頭から探す
+      //    例: <strong>36</strong>－15　本文... → text="36－15　本文..."
+      if (!numberMatch) {
+        numberMatch = text.match(numberPattern);
+      }
+
       const articleMatch = strong.match(/(\d+)\s*条/);
       // "2", "3" のような連番は同じ通達の続き
+      // ただし、テキスト全体から通達番号が見つかった場合はcontinuationではない
       const continuationMatch = strong.match(/^(\d+)$/);
 
       if (numberMatch) {
@@ -119,7 +128,8 @@ function parseTsutatsuPage(html, type) {
         currentNumber = normalizeNumber(numberMatch[1]);
 
         // 親チャンクを作成
-        const bodyText = text.replace(strong, '').trim();
+        // 通達番号部分をテキストから除去して本文を取得
+        const bodyText = text.replace(numberMatch[0], '').trim();
         parentChunk = {
           id: `${type}-${currentNumber}`,
           type,
