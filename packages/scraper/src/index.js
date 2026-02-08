@@ -112,10 +112,14 @@ async function main() {
     await indexPage.close();
 
     // 2. 各ページを取得して保存
+    // URLパスをフラットなファイル名に変換（ディレクトリ区切り→アンダースコア）
+    // 例: /law/tsutatsu/kihon/shotoku/05/02.htm → 05_02.htm
     for (let i = 0; i < links.length; i++) {
       const url = links[i];
-      const filename = url.split('/').pop();
-      console.log(`  [${i + 1}/${links.length}] ${filename}`);
+      // baseUrlからの相対パスをファイル名にする
+      const relativePath = url.replace(config.baseUrl, '');
+      const filename = relativePath.replace(/\//g, '_');
+      console.log(`  [${i + 1}/${links.length}] ${filename} (${url})`);
 
       try {
         const page = await context.newPage();

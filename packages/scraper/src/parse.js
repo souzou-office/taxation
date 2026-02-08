@@ -252,8 +252,10 @@ async function main() {
   }
 
   const htmlFiles = files.filter((f) => f.endsWith('.htm') || f.endsWith('.html'));
-  // index.htmlは目次なので除外
-  const contentFiles = htmlFiles.filter((f) => f !== 'index.html');
+  // 目次・メニューページを除外
+  const contentFiles = htmlFiles.filter(
+    (f) => f !== 'index.html' && f !== 'index.htm' && f !== 'menu.htm' && !f.startsWith('01')
+  );
 
   console.log(`Parsing ${contentFiles.length} files from ${rawDir}`);
 
