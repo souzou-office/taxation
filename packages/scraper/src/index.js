@@ -76,6 +76,28 @@ async function scrapeTarget(target) {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   });
 
+  // ページからbaseUrl配下の.htmリンクを抽出するヘルパー
+  async function collectLinks(page, pageUrl) {
+    return page.evaluate(
+      ({ baseUrl, currentUrl }) => {
+        const anchors = document.querySelectorAll('#contents a, #bodyArea a');
+        const urls = [];
+        for (const a of anchors) {
+          const href = a.getAttribute('href');
+          if (!href) continue;
+          // 相対URL → 絶対URL、#フラグメントを除去
+          const url = new URL(href, document.location.href).href.split('#')[0];
+          // baseUrl配下の.htmファイルのみ
+          if (url.startsWith(baseUrl) && url.includes('.htm') && url !== currentUrl) {
+            urls.push(url);
+          }
+        }
+        return [...new Set(urls)];
+      },
+      { baseUrl: config.baseUrl, currentUrl: pageUrl }
+    );
+  }
+
   try {
     // 1. 目次ページからリンク一覧を取得
     console.log(`Fetching index: ${config.indexUrl}`);
@@ -86,27 +108,42 @@ async function scrapeTarget(target) {
     const indexHtml = await indexPage.content();
     await writeFile(join(outDir, 'index.html'), indexHtml, 'utf-8');
 
-    // 通達本文ページへのリンクを抽出
-    const links = await indexPage.evaluate((baseUrl) => {
-      const anchors = document.querySelectorAll('#contents a, #bodyArea a');
-      const urls = [];
-      for (const a of anchors) {
-        const href = a.getAttribute('href');
-        if (!href) continue;
-        // 相対URL → 絶対URL
-        const url = new URL(href, document.location.href).href;
-        // 通達本文ページのみ（同じディレクトリ配下の.htmファイル）
-        if (url.includes('.htm') && !url.includes('#') && url !== document.location.href) {
-          urls.push(url);
-        }
-      }
-      return [...new Set(urls)];
-    }, config.baseUrl);
-
-    console.log(`Found ${links.length} pages`);
+    let links = await collectLinks(indexPage, config.indexUrl);
+    console.log(`Found ${links.length} pages from index`);
     await indexPage.close();
 
-    // 2. 各ページを取得して保存
+    // 2. リンクが少ない場合、サブ目次ページを辿る
+    //    (相続税のように目次→章目次→本文の構造に対応)
+    if (links.length < 10) {
+      console.log(`Few links found, checking sub-index pages...`);
+      const subLinks = [];
+      for (const url of links) {
+        await sleep(DELAY);
+        try {
+          const page = await context.newPage();
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+          const found = await collectLinks(page, url);
+          if (found.length > 0) {
+            console.log(`  Sub-index ${url.replace(config.baseUrl, '')}: ${found.length} links`);
+            subLinks.push(...found);
+          }
+          // サブ目次ページ自体もHTMLとして保存
+          const html = await page.content();
+          const relativePath = url.replace(config.baseUrl, '');
+          const filename = relativePath.replace(/\//g, '_');
+          await writeFile(join(outDir, filename), html, 'utf-8');
+          await page.close();
+        } catch (err) {
+          console.error(`  Failed to check sub-index: ${err.message}`);
+        }
+      }
+      // サブリンクを追加（元のリンクも残す）
+      const allUrls = new Set([...links, ...subLinks]);
+      links = [...allUrls];
+      console.log(`Total after sub-index scan: ${links.length} pages`);
+    }
+
+    // 3. 各ページを取得して保存
     for (let i = 0; i < links.length; i++) {
       const url = links[i];
       const relativePath = url.replace(config.baseUrl, '');
