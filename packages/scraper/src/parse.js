@@ -246,8 +246,7 @@ function parseTsutatsuPage(html, type) {
   return chunks;
 }
 
-async function main() {
-  const target = process.argv[2] || 'shotoku';
+async function parseTarget(target) {
   const rawDir = join(DATA_DIR, 'raw', target);
   const outDir = join(DATA_DIR, 'chunks', target);
   await mkdir(outDir, { recursive: true });
@@ -258,7 +257,7 @@ async function main() {
   } catch {
     console.error(`No raw data found: ${rawDir}`);
     console.error('Run the scraper first: node packages/scraper/src/index.js ' + target);
-    process.exit(1);
+    return 0;
   }
 
   const htmlFiles = files.filter((f) => f.endsWith('.htm') || f.endsWith('.html'));
@@ -267,7 +266,7 @@ async function main() {
     (f) => f !== 'index.html' && f !== 'index.htm' && f !== 'menu.htm' && !f.startsWith('01')
   );
 
-  console.log(`Parsing ${contentFiles.length} files from ${rawDir}`);
+  console.log(`\nParsing ${contentFiles.length} files from ${rawDir}`);
 
   let allChunks = [];
   for (const file of contentFiles) {
@@ -302,7 +301,39 @@ async function main() {
   }));
   await writeFile(join(outDir, '_index.json'), JSON.stringify(index, null, 2), 'utf-8');
 
-  console.log(`\nTotal: ${allChunks.length} chunks saved to ${outDir}`);
+  console.log(`Total: ${allChunks.length} chunks saved to ${outDir}`);
+  return allChunks.length;
+}
+
+const ALL_TARGETS = ['shotoku', 'hojin', 'sozoku', 'shohi', 'hyoka', 'sochiho'];
+
+async function main() {
+  const target = process.argv[2] || 'shotoku';
+
+  if (target === 'all') {
+    console.log(`Parsing all targets: ${ALL_TARGETS.join(', ')}`);
+    const results = {};
+    let grandTotal = 0;
+    for (const t of ALL_TARGETS) {
+      results[t] = await parseTarget(t);
+      grandTotal += results[t];
+    }
+    console.log(`\n========================================`);
+    console.log(`All done!`);
+    for (const [t, count] of Object.entries(results)) {
+      console.log(`  ${t}: ${count} chunks`);
+    }
+    console.log(`  Total: ${grandTotal} chunks`);
+    return;
+  }
+
+  if (!ALL_TARGETS.includes(target)) {
+    console.error(`Unknown target: ${target}`);
+    console.error(`Available: ${ALL_TARGETS.join(', ')}, all`);
+    process.exit(1);
+  }
+
+  await parseTarget(target);
 }
 
 main();

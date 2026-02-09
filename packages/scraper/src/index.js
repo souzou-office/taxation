@@ -59,20 +59,15 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function main() {
-  const target = process.argv[2] || 'shotoku';
+async function scrapeTarget(target) {
   const config = TSUTATSU_INDEX[target];
-  if (!config) {
-    console.error(`Unknown target: ${target}`);
-    console.error(`Available: ${Object.keys(TSUTATSU_INDEX).join(', ')}`);
-    process.exit(1);
-  }
-
   const outDir = join(DATA_DIR, target);
   await mkdir(outDir, { recursive: true });
 
-  console.log(`Scraping: ${config.name}`);
+  console.log(`\n========================================`);
+  console.log(`Scraping: ${config.name} (${target})`);
   console.log(`Output: ${outDir}`);
+  console.log(`========================================`);
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -112,20 +107,16 @@ async function main() {
     await indexPage.close();
 
     // 2. 各ページを取得して保存
-    // URLパスをフラットなファイル名に変換（ディレクトリ区切り→アンダースコア）
-    // 例: /law/tsutatsu/kihon/shotoku/05/02.htm → 05_02.htm
     for (let i = 0; i < links.length; i++) {
       const url = links[i];
-      // baseUrlからの相対パスをファイル名にする
       const relativePath = url.replace(config.baseUrl, '');
       const filename = relativePath.replace(/\//g, '_');
-      console.log(`  [${i + 1}/${links.length}] ${filename} (${url})`);
+      console.log(`  [${i + 1}/${links.length}] ${filename}`);
 
       try {
         const page = await context.newPage();
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-        // ページのHTMLを取得（ブラウザが既にUTF-8に変換済み）
         const html = await page.content();
         await writeFile(join(outDir, filename), html, 'utf-8');
         await page.close();
@@ -133,16 +124,45 @@ async function main() {
         console.error(`  Failed: ${err.message}`);
       }
 
-      // NTAに負荷をかけないよう待機
       if (i < links.length - 1) {
         await sleep(DELAY);
       }
     }
 
-    console.log(`\nDone. Saved ${links.length} pages to ${outDir}`);
+    console.log(`Done: ${links.length} pages saved for ${target}`);
+    return links.length;
   } finally {
     await browser.close();
   }
+}
+
+async function main() {
+  const target = process.argv[2] || 'shotoku';
+
+  if (target === 'all') {
+    // 全通達を順番にスクレイピング
+    const targets = Object.keys(TSUTATSU_INDEX);
+    console.log(`Scraping all targets: ${targets.join(', ')}`);
+    const results = {};
+    for (const t of targets) {
+      results[t] = await scrapeTarget(t);
+    }
+    console.log(`\n========================================`);
+    console.log(`All done!`);
+    for (const [t, count] of Object.entries(results)) {
+      console.log(`  ${t}: ${count} pages`);
+    }
+    return;
+  }
+
+  const config = TSUTATSU_INDEX[target];
+  if (!config) {
+    console.error(`Unknown target: ${target}`);
+    console.error(`Available: ${Object.keys(TSUTATSU_INDEX).join(', ')}, all`);
+    process.exit(1);
+  }
+
+  await scrapeTarget(target);
 }
 
 main();
