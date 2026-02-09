@@ -32,8 +32,8 @@ const TSUTATSU_INDEX = {
   },
   sozoku: {
     name: '相続税法基本通達',
-    indexUrl: 'https://www.nta.go.jp/law/tsutatsu/kihon/sisan/sozoku/01.htm',
-    baseUrl: 'https://www.nta.go.jp/law/tsutatsu/kihon/sisan/sozoku/',
+    indexUrl: 'https://www.nta.go.jp/law/tsutatsu/kihon/sisan/sozoku2/01.htm',
+    baseUrl: 'https://www.nta.go.jp/law/tsutatsu/kihon/sisan/sozoku2/',
   },
   shohi: {
     name: '消費税法基本通達',
